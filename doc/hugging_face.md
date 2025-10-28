@@ -1,9 +1,7 @@
-#Model links:
-Hungarian Named Entity Recognition Model with huBERT (F-score: 90.18%)
-https://huggingface.co/NYTK/named-entity-recognition-nerkor-hubert-hungarian
+## NER Models on Hugging Face
 
-Named Entity Recognition (NER) with Roberta
-https://huggingface.co/AventIQ-AI/roberta-named-entity-recognition
-
-Named Entity Recognition (NER) of Information Extraction（BERT Base Cased）
-https://huggingface.co/AventIQ-AI/named-entity-recognition-for-information-extraction
+| Model | Notes | Link |
+| --- | --- | --- |
+| Hungarian NER with huBERT | F1: 90.18% | [NYTK/named-entity-recognition-nerkor-hubert-hungarian](https://huggingface.co/NYTK/named-entity-recognition-nerkor-hubert-hungarian) |
+| RoBERTa NER | General NER with RoBERTa | [AventIQ-AI/roberta-named-entity-recognition](https://huggingface.co/AventIQ-AI/roberta-named-entity-recognition) |
+| BERT Base Cased NER (IE) | Information Extraction focus | [AventIQ-AI/named-entity-recognition-for-information-extraction](https://huggingface.co/AventIQ-AI/named-entity-recognition-for-information-extraction) |
