@@ -1,0 +1,60 @@
+paths:
+  raw_data_dir: ../data/raw/conll03
+  processed_data_dir: ../data/processed/conll03
+  models_dir: ../models/distilbert_crf
+  logs_dir: ../training_logs
+  figures_dir: ../analysis/figures
+  embeddings_dir: ../analysis/embeddings
+
+dataset:
+  name: conll03
+  validation_ratio: 0.2
+  seed: 42
+  max_seq_length: 128
+
+model:
+  pretrained_model_name: ../models/hf_cache/distilbert-base-cased
+  dropout: 0.1
+  crf_dropout: 0.0
+  use_char_features: false
+  char_hidden_size: 32
+  use_gazetteer: false
+  gazetteer_weight: 0.5
+
+training:
+  seed: 42
+  num_epochs: 2
+  batch_size: 8
+  learning_rate: 5.0e-5
+  weight_decay: 0.0
+  gradient_accumulation_steps: 1
+  max_grad_norm: 1.0
+  warmup_ratio: 0.0
+  fp16: false
+  logging_steps: 5
+  eval_steps: 20
+  save_steps: 1000
+  patience: 3
+  adversarial_training: null
+  lora:
+    enabled: false
+    r: 4
+    alpha: 16
+    dropout: 0.1
+
+evaluation:
+  metrics:
+    - precision
+    - recall
+    - f1
+  eval_batch_size: 16
+  decode_strategy: viterbi
+
+augmentation:
+  enabled: false
+  gazetteer_path: null
+  random_swap_prob: 0.0
+
+extras:
+  enable_adversarial_training: false
+  enable_lora: false
