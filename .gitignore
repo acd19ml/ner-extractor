@@ -41,3 +41,4 @@ DistilBERT-CRF/analysis/
 python_environment.yml
 Pipfile.lock
 poetry.lock
+.idea
