@@ -1,7 +1,10 @@
 # Configuration Notes
 
-- `default.yaml`: Full dataset training (batch_size=16, num_epochs=10, DistilBERT-CRF baseline).
+- `default.yaml`: Full dataset training (DistilBERT-CRF stabilization recipe: diff-LR/LLRD, EMA, R-Drop, gradual unfreeze).
 - `sanity.yaml`: Lightweight variant for quick pipeline checks.
+- `ablation/ema_off.yaml`: Turn off EMA (keep R-Drop on) for stabilization ablation.
+- `ablation/rdrop_off.yaml`: Disable R-Drop (keep EMA on) for stabilization ablation.
+- `ablation/aug_on.yaml`: Enable entity-aware augmentation with down-weighted loss.
 
 ## Planned Extensions
 

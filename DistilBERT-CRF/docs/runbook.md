@@ -50,6 +50,11 @@ This runbook captures the day-to-day workflow for preparing data, training, and 
   - `--freeze-encoder-layers N` freezes the lowest `N` DistilBERT layers for stability experiments.
   - `--evaluate-test` runs a final evaluation on the test split after training.
   - `--skip-training --evaluate-test` loads an existing checkpoint (default `best/`) and reports test metrics without re-running fine-tuning.
+- Cross-validation: run `scripts/generate_kfold_splits.py` once to produce a doc-aware JSON split (saved under `data/processed/conll03/kfold_splits.json` by default), then call `scripts/run_kfold.py` to orchestrate the five folds. The launcher exports `NER_FOLD_*` env vars so `train_distilbert_crf.py` reuses a single config while swapping subsets and captures per-fold summaries in `training_logs/kfold_results.csv` (configurable via `--results-file`).
+- Ablations: use the prebuilt configs under `configs/ablation/` (`ema_off.yaml`, `rdrop_off.yaml`, `aug_on.yaml`) with `scripts/run_kfold.py --config <cfg> --run-prefix <name>` to produce variant CV metrics. Summaries can be computed via `scripts/summarize_kfold.py --run-prefix <name> --csv training_logs/kfold_results.csv`.
+- Entity-aware augmentation:
+  - Toggle via `augmentation.enabled` in the YAML config. Additional knobs (`entity_replace_prob`, `max_entity_replacements`, `copies_per_sample`, `loss_weight`, `max_generated_samples`, `seed`) control how aggressively spans are replaced and how augmented sentences are weighted in the loss.
+  - Augmented samples are appended only to the training split and down-weighted during optimization (default `loss_weight=0.5`) to avoid overpowering real data.
 - Checkpoints and logs:
   - Best model: `models/distilbert_crf_baseline/best/`
   - Periodic checkpoints: `models/distilbert_crf_baseline/step_*`

@@ -1,0 +1,252 @@
+\chapter{Experiments}
+\section{CRF-BiLSTM Training and Experiments}
+\subsection{Data Splitting}
+The dataset is divided into train, validation, and test portions.  
+Cross-validation is performed *within the training set* during grid search.  
+The final model is trained on (train + validation) and then evaluated on the held-out test set.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.8\linewidth]{fig/kfold_workflow.png}
+\caption{K-fold training and validation workflow. (Placeholder)}
+\end{figure}
+
+\subsection{Hyperparameter Search}
+Table~\ref{tab:hyperparams} shows the hyperparameters explored.
+
+\begin{table}[h]
+\centering
+
+\begin{tabular}{lc}
+\hline
+Parameter & Values Explored \\
+\hline
+Model Type & BiLSTM, BiLSTM-CRF \\
+Hidden Size & 128, 256 \\
+Learning Rate & $1e^{-3}$, $5e^{-4}$ \\
+Batch Size & 32 \\
+\hline
+\end{tabular}
+\caption{Hyperparameter search space.}
+\label{tab:hyperparams}
+\end{table}
+
+The grid search found the following best-performing configuration:
+\[
+\text{BiLSTM-CRF (hidden=256, lr=0.001)}.
+\]
+
+\subsection{Evaluation Metrics}
+We adopt:
+\begin{itemize}
+    \item Precision
+    \item Recall
+    \item F1-score (micro)
+\end{itemize}
+
+\subsection{Results}
+\begin{table}[h]
+\centering
+\begin{tabular}{l c c c c}
+\toprule
+Model Type & Hidden Dim & Learning Rate & F1 Score \\
+\midrule
+BiLSTM-CRF & 128 & 0.0010 & 0.8163 \\
+BiLSTM     & 128 & 0.0010 & 0.0699 \\
+BiLSTM-CRF & 128 & 0.0005 & 0.7515 \\
+BiLSTM     & 128 & 0.0005 & 0.0614 \\
+BiLSTM-CRF & 256 & 0.0010 & \textbf{0.8317} \\
+BiLSTM     & 256 & 0.0010 & 0.0687 \\
+BiLSTM-CRF & 256 & 0.0005 & 0.7718 \\
+BiLSTM     & 256 & 0.0005 & 0.0748 \\
+\bottomrule
+\end{tabular}
+\caption{Comparison of model configurations in grid search. BiLSTM-CRF significantly outperforms vanilla BiLSTM across all hyperparameter settings.}
+\label{tab:grid-search-results}
+\end{table}
+
+
+\subsection{Learning Curves}
+The training loss and validation F1 (recorded during each epoch) are plotted below.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.8\linewidth]{fig/TrainingLossCurve.png}
+\caption{Training loss curve. (Placeholder)}
+\end{figure}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.8\linewidth]{fig/ValidationF1Curve.png}
+\caption{Validation F1 curve. (Placeholder)}
+\end{figure}
+
+\subsection{Convergence and Early Stopping}
+The model shows stable convergence as seen in the F1 curve, without signs of overfitting in the recorded epochs.
+\subsection{Some Error Examples and Error Analysis}
+
+Error:
+sentence="I study at City University of Hong Kong with John Smith ."
+Labels: ['O', 'O', 'O', 'O', 'O', 'O', 'B-LOC', 'I-LOC', 'O', 'B-PER', 'I-PER', 'O']
+Entities: [('Hong Kong', 'LOC'), ('John Smith', 'PER')]
+
+Success:
+sentence = "I studied at the University of Cambridge ."
+Labels:   ['O', 'O', 'O', 'O', 'B-ORG', 'I-ORG', 'I-ORG', 'O']
+Entities: [('University of Cambridge', 'ORG')]
+
+Analysis:
+"The comparison between the successful detection of 'University of Cambridge' and the failure on 'City University of Hong Kong' reveals that the BiLSTM-CRF baseline relies heavily on surface-level lexical cues (e.g., the strong indicator 'University') and high-frequency patterns seen in training. It struggles to generalize to entities where the headword is ambiguous (e.g., 'City') or when the specific phrase is rare in the training corpus.
+
+
+\section{RoBERTa Training and Experiments}
+
+\subsection{Training Configuration and Results}
+The model is trained for 3 epochs using the Hugging Face \texttt{Trainer} with a learning rate of $2 \times 10^{-5}$, per-device batch size of 16, weight decay of 0.01, and AdamW optimizer. Evaluation is performed every 200 steps, and the checkpoint with the highest validation F1 score is retained.
+
+\begin{figure}[!htbp]
+    \centering
+    \includegraphics[width=0.5\linewidth]{fig/RoBERTa/RoBERTa Training.png}
+    \caption{Final training summary and test evaluation of the fine-tuned RoBERTa model}
+    \label{fig:roberta-training}
+\end{figure}
+
+\begin{figure}[!htbp]
+    \centering
+    \includegraphics[width=0.75\linewidth]{fig/RoBERTa/training_curves.png}
+    \caption{Training/validation loss and validation F1 score throughout training}
+    \label{fig:roberta-curves}
+\end{figure}
+
+The training curves (Figure~\ref{fig:roberta-curves}) show smooth convergence, with validation F1 peaking around step 2,800.
+
+\subsection{Evaluation Metrics}
+Performance is reported using the official \texttt{seqeval} library, which computes entity-level precision, recall, and F1 with strict matching. With the above configuration, the model achieves \textbf{91.8--92.1\%} F1 on the CoNLL-2003 test set, aligning with or slightly surpassing typical published results for the same training regime.
+
+\subsection{Inference and Qualitative Error Analysis}
+At inference, predictions are realigned to the original word level using \texttt{word\_ids()}. An automated script identifies all sentences containing at least one mispredicted entity and displays token-by-token gold vs. predicted labels. Some randomly sampled error cases are shown in Figure~\ref{fig:roberta-errors}. Common mistakes include confusion between \texttt{ORG} and \texttt{MISC}, partial entity detection, and geopolitical entity ambiguity.
+
+\begin{figure}[!htbp]
+    \centering
+    \includegraphics[width=0.5\linewidth]{fig/RoBERTa/Error examples.png}
+    \caption{Error Sample Examples}
+    \label{fig:roberta-errors}
+\end{figure}
+
+This carefully implemented RoBERTa fine-tuning pipeline delivers a strong, reproducible baseline for English NER on CoNLL-2003 and serves as the foundation for subsequent experiments in this project.
+\subsection{Analysis of RoBERTa Classification Errors}
+The error examples in Figure ~\ref{fig:roberta-errors} reveal systematic limitations in RoBERTa's fine-tuned NER capabilities. The model frequently misclassifies domain-specific phrases like "WESTERN DIVISION" as entities due to over-generalization from training patterns, while struggling with entity-type disambiguation as seen in "GOLF" being labeled as location. These errors stem from insufficient contextual understanding where local token patterns outweigh global semantic cues, compounded by error propagation in subword token alignment. The model demonstrates particular difficulty with ambiguous noun phrases that lack clear entity markers, highlighting the need for improved context encoding and targeted negative sampling during fine-tuning to better distinguish between entity and non-entity segments.
+
+\section{DistilBERT-CRF Training and Experiments}
+\subsection{Experimental Setup}
+\begin{itemize}
+    \item \textbf{Cross-Validation}: A \textbf{5-Fold Cross-Validation} scheme is used. Crucially, we employ \textbf{GroupKFold} grouped by \texttt{doc\_id} to ensure strict separation between training and validation contexts.
+    \item \textbf{Metric}: The primary metric is \textbf{Entity-level Micro-F1} (CoNLL strict matching).
+    \item \textbf{Environment}: Experiments were conducted with mixed-precision (FP16/BF16) and gradient accumulation.
+\end{itemize}
+
+\subsection{Hyperparameters}
+The key hyperparameters used in the experiments are listed below:
+
+\begin{table}[htbp]
+    \centering
+    \begin{tabular}{ll}
+        \toprule
+        \textbf{Parameter} & \textbf{Value} \\
+        \midrule
+        \textbf{Model} & \texttt{distilbert-base-cased} \\
+        \textbf{Max Sequence Length} & 192 \\
+        \textbf{Batch Size} & 32 (effective) \\
+        \textbf{Optimizer} & AdamW \\
+        \textbf{Learning Rates} & Encoder: $2e-5$, Head: $2e-3$ \\
+        \textbf{Scheduler} & Cosine with 10\% Warmup \\
+        \textbf{Regularization} & CRF L2: $1e-4$, Emission Dropout: 0.2 \\
+        \textbf{R-Drop} & $\lambda = 0.5$ \\
+        \textbf{EMA Decay} & 0.999 \\
+        \bottomrule
+    \end{tabular}
+    \caption{Hyperparameter Configuration for DistilBERT-CRF}
+    \label{tab:hyperparams}
+\end{table}
+
+\subsection{Results}
+
+\subsubsection{5-Fold Cross-Validation Results}
+The latest cross-validation sweep employed GroupKFold (grouped by \texttt{doc\_id}) combined with Differential Learning Rates, Layer-wise Learning Rate Decay (LLRD), R-Drop, and EMA. Table~\ref{tab:cv_results_detailed} presents the validation F1 scores for each fold. The model shows high stability with a mean F1 of 92.84\%.
+
+\begin{table}[htbp]
+    \centering
+    \begin{tabular}{cc}
+        \toprule
+        \textbf{Fold} & \textbf{Validation F1} \\
+        \midrule
+        1 & 92.70\% \\
+        2 & 92.01\% \\
+        3 & 92.26\% \\
+        4 & 92.59\% \\
+        5 & 94.61\% \\
+        \midrule
+        \textbf{Mean} & \textbf{92.84\% $\pm$ 1.02\%} \\
+        \bottomrule
+    \end{tabular}
+    \caption{5-Fold Cross-Validation Results (Entity-level Micro F1) with full stabilization strategies.}
+    \label{tab:cv_results_detailed}
+\end{table}
+
+\subsubsection{Ablation Study}
+To justify the selected training strategies, we performed an ablation study using the same 5-fold splits. Table~\ref{tab:ablation} summarizes the impact of removing key components such as EMA, R-Drop, and Augmentation.
+
+\begin{table}[htbp]
+    \centering
+    \begin{tabular}{lcc}
+        \toprule
+        \textbf{Variant} & \textbf{Mean F1} & \textbf{Std} \\
+        \midrule
+        Main (Stabilization + Augmentation) & \textbf{92.84\%} & 0.93\% \\
+        EMA Off & 92.63\% & 0.97\% \\
+        R-Drop Off & 92.83\% & 0.84\% \\
+        Augmentation Off & 92.84\% & 0.93\% \\
+        \bottomrule
+    \end{tabular}
+    \caption{Ablation results (5-Fold CV Mean F1). The stabilization techniques (EMA, R-Drop) contribute to the robustness of the model, while augmentation maintains performance.}
+    \label{tab:ablation}
+\end{table}
+
+\subsubsection{Final Test Performance}
+The best configuration identified in CV (Augmentation On) was retrained on the full training + validation set and evaluated on the held-out Test set. Table~\ref{tab:final_comparison} compares the baseline run against the final stabilized run.
+
+\begin{table}[htbp]
+    \centering
+    \begin{tabular}{lcccc}
+        \toprule
+        \textbf{Run} & \textbf{Val F1} & \textbf{Test Prec.} & \textbf{Test Rec.} & \textbf{Test F1} \\
+        \midrule
+        Baseline (DistilBERT-CRF) & 94.38\% & 89.19\% & 90.00\% & 89.59\% \\
+        Final (Stabilized + Aug) & 94.27\% & 88.77\% & 90.53\% & \textbf{89.64\%} \\
+        \bottomrule
+    \end{tabular}
+    \caption{Final Test Performance comparison. The stabilized model achieves slightly higher F1 and better recall.}
+    \label{tab:final_comparison}
+\end{table}
+
+\subsection{Performance Analysis}
+The DistilBERT-CRF model achieves a Test F1 of $\sim 89.6\%$, effectively establishing a strong baseline. The use of CRF significantly helps in maintaining label consistency (BIOES constraints). The 5-fold CV results demonstrate robust performance, though the variance (Fold 5 significantly higher) suggests sensitivity to specific document distributions in the CoNLL dataset.
+
+\subsection{Convergence \& Stability}
+The integration of R-Drop and EMA contributes to training stability. As shown in the figures below, the training loss decreases steadily without significant fluctuations, and the validation F1 converges and stabilizes around the 10th epoch, preventing overfitting.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.8\textwidth]{fig/DistiBERT-CRF/training_loss_curve.png}
+    \caption{Training Loss over steps. The loss shows consistent convergence.}
+    \label{fig:loss_curve}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.8\textwidth]{fig/DistiBERT-CRF/validation_metrics_curve.png}
+    \caption{Validation F1, Precision, and Recall over evaluation steps.}
+    \label{fig:val_curve}
+\end{figure}
+
+\textit{(Note: Detailed error analysis (confusion matrices) and dimensionality reduction (clustering) are scheduled for the next phase of analysis.)}

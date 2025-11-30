@@ -1,60 +1,60 @@
 paths:
-  raw_data_dir: ../data/raw/conll03
-  processed_data_dir: ../data/processed/conll03
-  models_dir: ../models/distilbert_crf
-  logs_dir: ../training_logs
-  figures_dir: ../analysis/figures
-  embeddings_dir: ../analysis/embeddings
+  raw_data_dir: ../../data/raw/conll03
+  processed_data_dir: ../../data/processed/conll03
+  models_dir: ../../models/distilbert_crf
+  logs_dir: ../../training_logs
+  figures_dir: ../../analysis/figures
+  embeddings_dir: ../../analysis/embeddings
 
 dataset:
   name: conll03
   validation_ratio: 0.2
   seed: 42
-  max_seq_length: 128
+  max_seq_length: 192
 
 model:
   pretrained_model_name: models/hf_cache/distilbert-base-cased
-  dropout_emission: 0.1
+  dropout_emission: 0.2
   crf_dropout: 0.0
   use_char_features: false
-  char_hidden_size: 32
+  char_hidden_size: 64
   use_gazetteer: false
   gazetteer_weight: 0.5
 
 training:
   seed: 42
-  num_epochs: 2
-  batch_size: 8
-  gradient_accumulation_steps: 1
-  fp16: false
-  logging_steps: 5
-  eval_steps: 20
-  save_steps: 1000
-  patience: 3
+  num_epochs: 20
+  batch_size: 32
+  gradient_accumulation_steps: 2
+  fp16: true
+  logging_steps: 50
+  eval_steps: 200
+  save_steps: 400
+  patience: 6
   adversarial_training: null
   lora:
     enabled: false
-    r: 4
-    alpha: 16
+    r: 8
+    alpha: 32
     dropout: 0.1
   freeze:
-    initial_layers: 0
-    unfreeze_every_n_epochs: 0
+    initial_layers: 2
+    unfreeze_every_n_epochs: 2
     min_trainable_layer: 0
 
 optimizer:
-  encoder_lr: 5.0e-5
-  head_lr: 1.0e-3
-  weight_decay: 0.0
-  warmup_ratio: 0.0
+  encoder_lr: 2.0e-05
+  head_lr: 2.0e-03
+  weight_decay: 0.01
+  warmup_ratio: 0.1
   max_grad_norm: 1.0
-  llrd_gamma: 1.0
-  scheduler: linear
+  llrd_gamma: 0.95
+  scheduler: cosine
 
 regularization:
-  crf_l2: 0.0
+  crf_l2: 0.0001
   rdrop_lambda: 0.0
-  use_ema: false
+  use_ema: true
   ema_decay: 0.999
 
 evaluation:
@@ -62,7 +62,7 @@ evaluation:
     - precision
     - recall
     - f1
-  eval_batch_size: 16
+  eval_batch_size: 32
   decode_strategy: viterbi
 
 cv:
@@ -73,11 +73,11 @@ cv:
 augmentation:
   enabled: false
   entity_replace_prob: 0.3
-  max_entity_replacements: 1
+  max_entity_replacements: 2
   copies_per_sample: 1
-  max_generated_samples: 64
+  max_generated_samples: null
   loss_weight: 0.5
-  seed: 1234
+  seed: 42
   shuffle: true
   gazetteer_path: null
   random_swap_prob: 0.0

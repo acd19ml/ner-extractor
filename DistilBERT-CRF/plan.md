@@ -233,6 +233,8 @@ Discussion: CRF for boundaries, robustness from R-Drop/EMA, value of priors/char
 	4.	可视化脚本 ✅：`analysis/scripts/plot_metrics.py`、`entity_stats.py` 生成 loss/F1 曲线与实体/句长图表。
 	5.	Notebook 规划（进行中）：在 `notebooks/` 中建骨架 notebook（数据探索 + 训练复现 + 可视化），完善图表输出。
 	6.	特征扩展设计：梳理字符嵌入、gazetteer soft labels、FGM/LoRA 实现细节及实验矩阵，补充到 `configs/` 与 `docs/implementation_notes.md` 中。
+	7.	实体增强实现 ✅：`src/augmentation.py` + `data_module` 中加入实体感知替换、loss weight（默认 0.5），通过 YAML `augmentation.*` 控制；日志输出增强样本数量，训练日志/Trainer 支持 per-sample loss_weight。
+	8.	5-fold 基础设施 ✅：已跑完主线 + 消融（EMA off / R-Drop off / Aug on）5 折，均值已写入 `results_summary.csv`；`training_logs/kfold_results.csv` 记录所有折；后续选择最佳策略做全量 train+dev + test 评估，并在报告中对比均值/方差。
 
 ⸻
 
@@ -241,7 +243,7 @@ Discussion: CRF for boundaries, robustness from R-Drop/EMA, value of priors/char
 	  - 内容：数据处理与切分、DistilBERT-CRF 主干实现、单次全量训练、日志与核心可视化；确保 `results_summary.csv` 有 baseline 行，Notebook 输出基础统计；附带最小报告（指标表 + 图表引用 + 结论）与 `data/labels.json`、复现脚本 (`scripts/train_baseline.sh`, `scripts/eval_baseline.sh`)。  
 	  - 当前状态：已完成，构成 NER 可交付基线，后续里程碑失败亦可独立交付。
 	•	M2 – 训练策略与稳定性（Training Stabilization）  
-	  - 内容：差分 LR/LLRD、渐进解冻、R-Drop、EMA、实体感知增强、5-fold 调参，记录各策略对比结果。  
+	  - 内容：差分 LR/LLRD、渐进解冻、R-Drop、EMA、实体感知增强、5-fold 调参，记录各策略对比结果。**当前进展**：diff-LR/LLRD、R-Drop、EMA、渐进解冻已在 `configs/default.yaml` 中预设并通过 `sanity_m2` 验证；下一步聚焦实体增强与 5-fold 框架。  
 	  - 目标：在 M1 基线基础上提升训练稳定性与 F1，同时产出调参记录。
 	•	M3 – 表征增强（Representation Enhancements）  
 	  - 内容：实现 char 特征、gazetteer 融合、BIOES 约束、CRF L2 等；配套可视化/错误分析展示特征贡献。  

@@ -102,13 +102,25 @@
 
 ### TokenizedNERDataset
 - **Purpose**: Convert `ConllSentence` objects into token-aligned tensors ready for Transformer training.
-- **Key Idea**: Call the fast tokenizer with split tokens, leverage `word_ids` for BIO label alignment, and mark sub-token continuations with `-100` unless explicitly requested.
+- **Key Idea**: Call the fast tokenizer with split tokens, leverage `word_ids` for BIO label alignment, mark sub-token continuations with `-100` unless explicitly requested, and attach per-example loss weights (default `1.0`, down-weighted for augmented samples).
 - **Further Work**: Cache tokenizer outputs to disk for repeated experiments or add dynamic truncation strategies based on sentence length distributions.
 
 ### create_dataloaders
 - **Purpose**: Assemble PyTorch dataloaders for all splits while sharing a consistent data collator and label vocabulary.
-- **Key Idea**: Load sentences, derive the label set from the union of train/validation/test splits (so limited train samples still cover evaluation tags), optionally trim to a fixed number of samples for quick sanity checks, instantiate the tokenized dataset per split, and wrap them with `DataCollatorForTokenClassification`.
+- **Key Idea**: Load sentences, derive the label set from the union of train/validation/test splits (so limited train samples still cover evaluation tags), optionally rewrite train/validation subsets when fold indices are supplied (combine the base train+dev pool and slice by index), trim to a fixed number of samples for quick sanity checks, trigger entity-aware augmentation when enabled (append augmented sentences + their loss weights, shuffle deterministically), instantiate the tokenized dataset per split, and wrap them with the custom `NerDataCollator`.
 - **Further Work**: Add support for distributed sampler integration and expose iterable-style dataloaders for streaming large corpora.
+
+### NerDataCollator
+- **Purpose**: Preserve extra tensors (loss weights) when batching token-classification features.
+- **Key Idea**: Delegate to Hugging Face's `DataCollatorForTokenClassification`, but peel off `loss_weight` values before collation and attach them back as a float tensor alongside the usual inputs.
+- **Further Work**: Surface gradient-accumulation aware padding diagnostics or fold sentence indices into richer logging payloads.
+
+## src/augmentation.py
+
+### EntityAugmentationConfig / entity_aware_augmentation
+- **Purpose**: Provide configurable entity-aware augmentation (type-consistent span replacement with optional caps, shuffle, and deterministic seeds) to boost data diversity.
+- **Key Idea**: Build a label -> token-span pool from the base corpus, randomly sample entities to replace per sentence according to probability/limit knobs, emit augmented `ConllSentence` copies with BIO tags rebuilt for replacement spans, and report how many sentences were generated.
+- **Further Work**: Support contextual constraints (e.g., lexical similarity thresholds), integrate gazetteer-driven replacements, or emit augmentation metadata for audit trails.
 
 ## src/modeling.py
 
@@ -119,7 +131,7 @@
 
 ### DistilBertCrfForTokenClassification
 - **Purpose**: Combine DistilBERT encoder with a linear emission head and a CRF layer for structured prediction.
-- **Key Idea**: Reuse pretrained weights, apply dropout, sanitize labels by replacing `-100` with the configured pad id before passing them to TorchCRF, and decode sequences with `viterbi_decode` while respecting attention masks. Currently raises `NotImplementedError` when the new `use_char_features` or `use_gazetteer` flags are enabled to signal missing implementations.
+- **Key Idea**: Reuse pretrained weights, apply dropout, sanitize labels by replacing `-100` with the configured pad id before passing them to TorchCRF, optionally accept per-example loss weights (so augmented samples contribute <1.0 to the objective), and decode sequences with `viterbi_decode` while respecting attention masks. Currently raises `NotImplementedError` when the new `use_char_features` or `use_gazetteer` flags are enabled to signal missing implementations.
 - **Further Work**: Inject additional feature projections (char embeddings, gazetteer logits) via concatenation before the classifier.
 
 ### freeze_encoder_layers
@@ -153,7 +165,7 @@
 
 ### TrainerConfig
 - **Purpose**: Encapsulate high-level training hyperparameters (optimization, logging cadence, checkpointing) detached from the YAML config so they can be constructed programmatically.
-- **Key Idea**: Use a dataclass with sensible defaults and filesystem paths, enabling overrides from CLI arguments or notebooks.
+- **Key Idea**: Use a dataclass with sensible defaults and filesystem paths, enabling overrides from CLI arguments or notebooks. Supports diff-LR/LLRD (separate encoder/head LR with per-layer decay), R-Drop lambda, EMA toggles, CRF L2, and gradual unfreezing controls (`freeze_initial_layers`, `unfreeze_every_n_epochs`, `freeze_min_layers`).
 - **Further Work**: Mirror the Hugging Face `TrainingArguments` schema for easier interoperability with existing tooling.
 
 ### NerTrainer.__init__

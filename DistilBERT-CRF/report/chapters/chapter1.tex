@@ -1,0 +1,105 @@
+\chapter{Introduction}
+
+Named Entity Recognition (NER) is a fundamental sequence-labeling task that aims to detect and categorize textual spans referring to real-world entities such as persons, locations, and organizations. Modern NER systems increasingly rely on neural architectures that combine contextualized representation learning with structured decoding.  
+In this project, we implement and compare three representative model families:
+(1) a recurrent architecture with structured prediction (BiLSTM–CRF),
+(2) a transformer-based pretrained language model (RoBERTa),
+and (3) a lightweight pretrained encoder augmented with a CRF layer (DistilBERT–CRF).
+These models represent distinct trade-offs between computational efficiency, contextual modeling capacity, and decoding consistency.
+
+\section{Task Objectives}
+
+The implemented part of the project focuses on the following objectives:
+
+\begin{itemize}
+    \item To design, train, and evaluate three neural NER models:
+    \begin{itemize}
+        \item \textbf{BiLSTM–CRF}: a classic sequence model combining bidirectional recurrent encoding with structured CRF decoding.
+        \item \textbf{RoBERTa}: a strong transformer-based contextual encoder fine-tuned for token classification.
+        \item \textbf{DistilBERT–CRF}: a compressed transformer model with a CRF layer for efficient structured prediction.
+    \end{itemize}
+
+    \item To perform controlled comparison across architectures with respect to F1 performance, stability, convergence behaviour, and error patterns.
+
+    \item To conduct hyperparameter search (embedding choice, hidden dimension, learning rate) for BiLSTM-based models, and to apply full fine-tuning procedures for transformer-based variants.
+
+    \item To perform K-fold cross-validation and final full-data training using the selected best configurations.
+
+    \item To record and visualize training loss, validation F1 curves, grid search heatmaps, and detailed error statistics.
+
+    \item To generate interpretable evaluation summaries and visualizations supporting downstream analysis and discussion.
+\end{itemize}
+
+
+
+\section{Dataset}
+
+The dataset consists of tokenized sentences paired with BIO-format labels covering the major NER entity types. The corpus is pre-split into training, validation, and test portions, shown in Table~\ref{tab:data-split}.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{l r}
+\hline
+\textbf{Dataset Split} & \textbf{Number of Sentences} \\
+\hline
+Train       & 14{,}041 \\
+Validation  & 3{,}250 \\
+Test        & 3{,}453 \\
+\hline
+\end{tabular}
+\caption{Dataset split statistics used in our NER experiments.}
+\label{tab:data-split}
+\end{table}
+
+The distribution of BIO tags across all tokens is summarized in Table~\ref{tab:label-counts}. As shown, the label distribution is highly imbalanced, with the majority of tokens labeled as non-entity (\texttt{O}).
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.7\linewidth]{fig/DistiBERT-CRF/entity_frequency.png}
+\caption{Frequency of entity types (PER, LOC, ORG, MISC). The dataset exhibits significant class imbalance.}
+\label{fig:entity-freq}
+\end{figure}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.7\linewidth]{fig/DistiBERT-CRF/sentence_length_distribution.png}
+\caption{Distribution of sentence lengths. We set max length to 192 to cover the majority of samples.}
+\label{fig:sent-len}
+\end{figure}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lrr}
+\hline
+\textbf{Label} & \textbf{Count} & \textbf{Description} \\
+\hline
+O      & 169{,}578 & Non-entity tokens \\
+B-LOC  & 7{,}140   & Beginning of Location \\
+I-LOC  & 1{,}157   & Inside Location \\
+B-PER  & 6{,}600   & Beginning of Person \\
+I-PER  & 4{,}528   & Inside Person \\
+B-ORG  & 6{,}321   & Beginning of Organization \\
+I-ORG  & 3{,}704   & Inside Organization \\
+B-MISC & 3{,}438   & Beginning of Miscellaneous \\
+I-MISC & 1{,}155   & Inside Miscellaneous \\
+\hline
+\end{tabular}
+\caption{Token label distribution of the NER dataset.}
+\label{tab:label-counts}
+\end{table}
+
+
+
+\section{Challenges}
+
+Three significant challenges arise in the NER task addressed in this project:
+
+\begin{itemize}
+    \item \textbf{Rare and Imbalanced Entities.} The long-tailed distribution of entity types makes certain classes (e.g., \texttt{I-LOC}, \texttt{I-MISC}) difficult to learn, increasing both variance and misclassification rates.
+
+    \item \textbf{Cross-domain Variation.} Sentence structure, vocabulary diversity, and named-entity surface forms vary across different parts of the corpus, resulting in distribution shifts that stress generalization ability.
+
+    \item \textbf{Ambiguity and Boundary Errors.} Tokens that can represent multiple entity types (e.g., organizations vs. locations), as well as multi-token entities requiring correct BIO boundaries, introduce structured ambiguity that simple token-wise classifiers struggle with.
+\end{itemize}
+
+These challenges motivate the comparison between BiLSTM-based and transformer-based architectures, and particularly the evaluation of CRF-enhanced variants designed to improve consistency in boundary prediction and entity typing.

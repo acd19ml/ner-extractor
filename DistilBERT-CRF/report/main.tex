@@ -1,0 +1,65 @@
+\documentclass[11pt,oneside]{book}
+\usepackage[margin=1.2in]{geometry}
+\usepackage{setspace}
+\usepackage[toc,page]{appendix}
+\usepackage[none]{hyphenat} % turn hyphenation off by default
+\usepackage{graphicx}
+\usepackage{parskip}
+\usepackage[style=authoryear-ibid,backend=biber]{biblatex}
+\usepackage{lscape}
+\usepackage{booktabs}
+\usepackage{xcolor,colortbl}
+\definecolor{Anti-flash white}{rgb}{0.95, 0.95, 0.96}
+\usepackage[utf8]{inputenc}
+\usepackage{threeparttable} % For notes below the table
+\usepackage[table]{xcolor} % For cell coloring
+\usepackage{makecell} % For line breaks within cells
+\usepackage{longtable} % For tables that span multiple pages
+\usepackage{changepage}
+\usepackage{ltablex}
+\usepackage{wrapfig}
+\usepackage{hyperref}
+ \usepackage{amsmath}
+\begin{document}
+
+\frontmatter
+
+\begin{titlepage}
+
+% You need to edit the details here
+
+\begin{center}
+\linespread{1.2}\huge {\bfseries CS5489 Project – NER Extractor}\\[2cm]
+\linespread{1}
+{\Large Group 37}\\[1cm]
+{\large Li Mengxiao, Ye Hengrui, Zheng Jiarun}\\[10cm]
+\today
+\end{center}
+
+\end{titlepage}
+
+% -------------------------------------------------------------------
+% Declaration
+% -------------------------------------------------------------------
+
+\newpage
+
+
+
+\tableofcontents
+\listoffigures
+\listoftables
+
+\setstretch{1.1} 
+
+\mainmatter
+
+\input{chapters/chapter1}
+\input{chapters/chapter2}
+\input{chapters/chapter3}
+\input{chapters/chapter4}
+
+\printbibliography
+
+
+\end{document}

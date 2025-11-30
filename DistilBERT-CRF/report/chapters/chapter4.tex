@@ -1,0 +1,124 @@
+\chapter{Analysis and Discussion}
+
+\label{sec:analysis_discussion}
+
+Building on the experimental results in Chapters~2 and 3, this section compares the three model families (BiLSTM-CRF, RoBERTa, DistilBERT-CRF), analyzes the role of structured CRF decoding, and discusses the main error patterns and stability properties observed in our experiments.
+
+\section{Overall Performance and Architectural Trade-offs}
+
+The results exhibit a clear performance hierarchy across architectures, while also revealing a nuanced trade-off between accuracy and efficiency:
+
+\begin{enumerate}
+    \item \textbf{RoBERTa (Test F1 $\approx 91.8$--$92.1\%$)} \\
+    The fine-tuned RoBERTa model achieves the highest test F1 score among all systems. Its advantage mainly comes from deeply contextualized representations learned from large-scale pre-training (160~GB of text), which allow it to capture long-range dependencies and perform robust word sense disambiguation.
+
+    \item \textbf{DistilBERT-CRF (CV F1 = $92.84\% \pm 1.02\%$, Test F1 $\approx 89.6\%$)} \\
+    DistilBERT-CRF attains a strong cross-validation performance that is slightly higher than RoBERTa's test F1, but drops to about $89.6\%$ on the held-out test set. This suggests that the model fits the training folds well but is somewhat more sensitive to distribution shifts between validation folds and the CoNLL test set. Given that DistilBERT has only about $60\%$ of BERT's parameters, the combination of a lightweight encoder with a CRF decoder provides an attractive balance between accuracy and computational cost.
+
+    \item \textbf{BiLSTM-CRF (CV F1 up to 0.8317)} \\
+    The best BiLSTM-CRF configuration reaches an F1 of approximately 0.83, which is clearly below both transformer-based models but still constitutes a reasonably strong non-pretrained baseline. This confirms that static embeddings plus recurrent encoding are limited in capturing rich semantic phenomena compared to large pretrained transformers.
+\end{enumerate}
+
+Overall, the experiments confirm that pretrained transformer encoders are indispensable for high-accuracy NER, while CRF-based structured decoding remains highly beneficial, especially when model capacity is constrained.
+
+\section{Necessity of CRF for BiLSTM-based Models}
+
+The grid search in Section~3.1.4 reveals an extreme performance gap between BiLSTM-CRF and vanilla BiLSTM across all hyperparameter settings. While BiLSTM-CRF reaches F1 scores in the 0.75--0.83 range, the corresponding vanilla BiLSTM models achieve only about \textbf{6--7\% F1} (0.061--0.075), effectively rendering them unusable in practice. This highlights two critical functions of the CRF layer:
+
+\begin{enumerate}
+    \item \textbf{Enforcing Label Sequence Validity} \\
+    The dataset uses BIO tagging, which imposes strict constraints such as \texttt{I-PER} being allowed only after \texttt{B-PER} or another \texttt{I-PER}. A token-wise softmax classifier treats labels independently and thus frequently produces illegal transitions (e.g., \texttt{O} $\rightarrow$ \texttt{I-LOC}), which are heavily penalized by sequence-level F1. In contrast, the linear-chain CRF learns a transition matrix that assigns low scores to invalid transitions and high scores to plausible ones, enforcing global consistency during Viterbi decoding. This alone elevates the BiLSTM-based system from near-random predictions to a usable NER model.
+
+    \item \textbf{Mitigating the ``All-O'' Local Optimum under Label Imbalance} \\
+    Table~1.2 shows that the majority of tokens are labeled as \texttt{O}, with entity tags being highly under-represented. Under token-wise training, the BiLSTM classifier is strongly biased towards predicting \texttt{O} everywhere, since such behavior already yields high token-level accuracy but extremely low entity-level F1. By modeling the joint probability of the entire label sequence, the CRF discourages trivial all-\texttt{O} sequences when the input contains strong local evidence for entities, thereby reducing the impact of label imbalance on the effective decision boundary.
+\end{enumerate}
+
+In summary, the BiLSTM encoder alone is insufficient for NER on this dataset; structured CRF decoding is essential to enforce legal BIO patterns and to escape degenerate local optima induced by class imbalance.
+
+\section{Error Patterns and Semantic Limitations}
+
+Even though RoBERTa delivers the best overall test performance, the qualitative analysis in Section~3.2.4 and Figure~3.6 exposes systematic weaknesses that also align with the token-level confusion matrix and error distribution in Chapter~4.
+
+\subsection{Over-generalization of Entity-like Surface Forms}
+
+In one error example, the phrase ``WESTERN DIVISION'' is incorrectly tagged as an entity. This suggests that the model has over-generalized from training patterns where capitalized multi-word expressions often correspond to locations or organizations. When encountering visually similar phrases that are actually non-entities, RoBERTa tends to produce spurious entities, reflecting an over-reliance on surface cues such as capitalization and word shape.
+
+\subsection{Semantic Ambiguity and Type Confusion}
+
+Another example shows ``GOLF'' being misclassified as a location. Such errors typically occur when the surrounding context is not sufficiently informative to disambiguate between activity, event, and place interpretations. The token-level confusion matrix and the error-category histogram indicate that type confusion (e.g., ORG vs.\ MISC vs.\ LOC) dominates the error distribution, while pure boundary errors are relatively rare, confirming that the main difficulty lies in assigning the correct entity type rather than detecting span boundaries.
+
+These observations suggest that while contextualized transformers handle boundaries well, they still struggle with fine-grained semantic categorization, especially for ambiguous phrases. Potential remedies include:
+\begin{itemize}
+    \item incorporating external gazetteers or knowledge bases,
+    \item more aggressive hard-negative mining of non-entity spans that resemble entities, and
+    \item contrastive or adversarial training objectives that explicitly separate entity types in representation space.
+\end{itemize}
+
+\subsection{Stability and Convergence of DistilBERT-CRF}
+
+The DistilBERT-CRF model exhibits notably stable training dynamics:
+
+\begin{itemize}
+    \item The 5-fold cross-validation results (Mean F1 = $92.84\% \pm 1.02\%$) show low variance across folds, indicating robust generalization within the training corpus.
+    \item The training loss curve (Figure~3.7) decreases smoothly without large oscillations, and the validation F1 curve (Figure~3.8) saturates and stabilizes around the 10th epoch, with precision and recall tracking closely throughout training.
+\end{itemize}
+
+This stability is largely attributable to the training strategies in Section~2.3.2:
+
+\begin{enumerate}
+    \item \textbf{Differential and Layer-wise Learning Rates} \\
+    Small learning rates for lower transformer layers (down to $2\times10^{-5}$ with layer-wise decay) protect general linguistic knowledge acquired during pre-training, while larger learning rates for the CRF and classification head ($2\times10^{-3}$) allow rapid adaptation of task-specific components.
+
+    \item \textbf{R-Drop Regularization} \\
+    By enforcing consistency between two stochastic forward passes via a KL-divergence penalty, R-Drop smooths the decision boundary and reduces over-confidence on noisy examples. This regularization helps explain the absence of sharp performance drops across evaluation checkpoints.
+
+    \item \textbf{Exponential Moving Average (EMA) of Weights} \\
+    Using EMA-smoothed parameters for evaluation further dampens the effect of noisy gradient updates, yielding more stable test F1 trajectories and slightly better generalization compared to using raw checkpoint weights alone.
+\end{enumerate}
+
+\subsection{Dimensionality Reduction and Clustering}
+To visually inspect the learned representations, we extracted the hidden states of entity tokens from the validation set and projected them into 2D space using PCA.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.7\linewidth]{fig/PCA.png}
+\caption{PCA projection of learned entity embeddings. The distinct clusters for PER, LOC, and ORG suggest that the model learns discriminative features for different entity types, though some overlap persists between ORG and MISC.}
+\label{fig:pca}
+\end{figure}
+
+The visualization in Figure~\ref{fig:pca} demonstrates that the model successfully clusters tokens of the same entity type together. The clear separation between Person (PER) and Location (LOC) aligns with the high precision observed for these classes. Conversely, the overlap between Organization (ORG) and Miscellaneous (MISC) in the embedding space correlates with the confusion errors discussed earlier, confirming that these classes are semantically closer and harder to distinguish.
+
+Together, these techniques enable a compact encoder + CRF stack to train reliably, achieving competitive performance with a significantly smaller computational footprint than RoBERTa.
+
+\section{Limitations and Threats to Validity}
+
+While the DistilBERT-CRF model establishes a strong baseline, several limitations and threats to validity should be noted:
+
+\begin{itemize}
+    \item \textbf{CV–Test Gap}: There is a noticeable gap between the Cross-Validation mean F1 ($\approx 92.8\%$) and the final Test F1 ($\approx 89.6\%$). This suggests some degree of overfitting to the validation folds or a distribution mismatch between the development and test splits of CoNLL-2003. Future work could investigate more conservative early stopping or stronger regularization.
+    
+    \item \textbf{Impact of Augmentation}: The ablation study in Chapter 3 indicates that entity-aware augmentation yielded negligible aggregate gains in Cross-Validation. This implies that the current replacement strategy might be injecting noise or that the model is already robust enough to the variations the augmentation introduces.
+    
+    \item \textbf{Metric Coverage}: The current evaluation primarily focuses on strict Entity-level F1. We did not explicitly log illegal sequence rates (e.g., \texttt{I-ORG} following \texttt{B-PER}) in the main results table. Although the CRF layer theoretically prevents these, quantifying the reduction in structural errors compared to a non-CRF baseline would strengthen the architectural justification.
+    
+    \item \textbf{Generalization}: The results are specific to the CoNLL-2003 dataset (news domain). The transferability of the specific hyperparameters (e.g., the aggressive learning rate differential) to other domains such as medical or social media text remains unverified.
+\end{itemize}
+
+\section{Summary and Future Directions}
+
+Across all experiments, several conclusions emerge:
+
+\begin{itemize}
+    \item Pretrained transformers are crucial for state-of-the-art NER performance. Both RoBERTa and DistilBERT-CRF substantially outperform the non-pretrained BiLSTM-CRF baseline, confirming the value of large-scale pretraining for contextual representation learning.
+    \item Structured CRF decoding is a key component when model capacity is limited or label imbalance is severe. For BiLSTM, removing CRF collapses F1 to about 6--7\%; with a CRF, the same encoder becomes a competitive baseline. Even for DistilBERT, the CRF layer improves BIOES consistency and helps enforce valid transitions.
+    \item Most remaining errors are type confusion rather than boundary errors. RoBERTa and DistilBERT-CRF largely solve span detection but still misclassify ambiguous phrases and over-predict entity-like surface forms as entities.
+\end{itemize}
+
+Future work should therefore focus on mitigating over-generalization and semantic type confusion, for example by:
+\begin{itemize}
+    \item integrating external lexical or knowledge resources,
+    \item designing contrastive objectives that separate entity types in representation space, and
+    \item performing targeted data augmentation or hard-negative mining for non-entity spans that closely resemble entities.
+\end{itemize}
+
+Such extensions would complement the current architectures and training strategies, further closing the gap between strong baselines and fully robust, domain-transferable NER systems.

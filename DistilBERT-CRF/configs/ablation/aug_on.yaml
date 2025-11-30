@@ -1,15 +1,17 @@
 paths:
-  raw_data_dir: ../data/raw/conll03
-  processed_data_dir: ../data/processed/conll03
-  models_dir: ../models/distilbert_crf
-  logs_dir: ../training_logs
-  figures_dir: ../analysis/figures
-  embeddings_dir: ../analysis/embeddings
+  raw_data_dir: ../../data/raw/conll03
+  processed_data_dir: ../../data/processed/conll03
+  models_dir: ../../models/distilbert_crf
+  logs_dir: ../../training_logs
+  figures_dir: ../../analysis/figures
+  embeddings_dir: ../../analysis/embeddings
+
 dataset:
   name: conll03
   validation_ratio: 0.2
   seed: 42
   max_seq_length: 192
+
 model:
   pretrained_model_name: models/hf_cache/distilbert-base-cased
   dropout_emission: 0.2
@@ -18,6 +20,7 @@ model:
   char_hidden_size: 64
   use_gazetteer: false
   gazetteer_weight: 0.5
+
 training:
   seed: 42
   num_epochs: 20
@@ -38,6 +41,7 @@ training:
     initial_layers: 2
     unfreeze_every_n_epochs: 2
     min_trainable_layer: 0
+
 optimizer:
   encoder_lr: 2.0e-05
   head_lr: 2.0e-03
@@ -46,24 +50,28 @@ optimizer:
   max_grad_norm: 1.0
   llrd_gamma: 0.95
   scheduler: cosine
+
 regularization:
   crf_l2: 0.0001
   rdrop_lambda: 0.5
   use_ema: true
   ema_decay: 0.999
+
 evaluation:
   metrics:
-  - precision
-  - recall
-  - f1
+    - precision
+    - recall
+    - f1
   eval_batch_size: 32
   decode_strategy: viterbi
+
 cv:
   n_splits: 5
   group_key: doc_id
   seed: 42
+
 augmentation:
-  enabled: false
+  enabled: true
   entity_replace_prob: 0.3
   max_entity_replacements: 2
   copies_per_sample: 1
@@ -73,6 +81,7 @@ augmentation:
   shuffle: true
   gazetteer_path: null
   random_swap_prob: 0.0
+
 extras:
   enable_adversarial_training: false
   enable_lora: false

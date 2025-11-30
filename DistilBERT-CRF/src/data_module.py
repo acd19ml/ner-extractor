@@ -2,17 +2,21 @@
 
 from __future__ import annotations
 
+import logging
+import random
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, List, Mapping, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple, Union
 
 import torch
 from torch.utils.data import DataLoader, Dataset
 from transformers import DataCollatorForTokenClassification, PreTrainedTokenizerFast
 
+from augmentation import EntityAugmentationConfig, entity_aware_augmentation
 from datasets import ConllSentence, read_conll_file
 
+logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class NerLabels:
@@ -64,12 +68,14 @@ class TokenizedNERDataset(Dataset):
         label_to_id: Mapping[str, int],
         max_length: int,
         label_all_tokens: bool = False,
+        sample_weights: Optional[Sequence[float]] = None,
     ) -> None:
         self.sentences = sentences
         self.tokenizer = tokenizer
         self.label_to_id = label_to_id
         self.max_length = max_length
         self.label_all_tokens = label_all_tokens
+        self.sample_weights = sample_weights
 
     def __len__(self) -> int:  # pragma: no cover - trivial
         return len(self.sentences)
@@ -106,7 +112,27 @@ class TokenizedNERDataset(Dataset):
         item = {key: tensor.squeeze(0) for key, tensor in encoding.items()}
         item["labels"] = torch.tensor(labels, dtype=torch.long)
         item["sentence_index"] = torch.tensor(index, dtype=torch.long)
+        weight = 1.0
+        if self.sample_weights is not None and index < len(self.sample_weights):
+            weight = float(self.sample_weights[index])
+        item["loss_weight"] = torch.tensor(weight, dtype=torch.float)
         return item
+
+
+class NerDataCollator:
+    """Custom collator that preserves loss weights alongside tokenization outputs."""
+
+    def __init__(self, tokenizer: PreTrainedTokenizerFast) -> None:
+        self.base = DataCollatorForTokenClassification(tokenizer=tokenizer, return_tensors="pt")
+
+    def __call__(self, features: List[Dict[str, torch.Tensor]]) -> Dict[str, torch.Tensor]:
+        weights = torch.tensor(
+            [float(feature.pop("loss_weight", 1.0)) for feature in features],
+            dtype=torch.float,
+        )
+        batch = self.base(features)
+        batch["loss_weight"] = weights
+        return batch
 
 
 def create_dataloaders(
@@ -120,6 +146,9 @@ def create_dataloaders(
     num_workers: int = 0,
     max_train_samples: Optional[int] = None,
     max_eval_samples: Optional[int] = None,
+    augmentation_cfg: Optional[Mapping[str, Any]] = None,
+    seed: int = 42,
+    fold_indices: Optional[Mapping[str, Sequence[int]]] = None,
 ) -> Tuple[Dict[str, DataLoader], NerLabels]:
     """Construct PyTorch dataloaders for train/validation/test splits."""
 
@@ -130,11 +159,37 @@ def create_dataloaders(
             return sentences[: max(0, limit)]
         return sentences
 
+    if fold_indices:
+        _apply_fold_indices(splits, fold_indices)
+
     if max_train_samples is not None:
         splits["train"] = maybe_trim(splits["train"], max_train_samples)
     if max_eval_samples is not None:
         splits["validation"] = maybe_trim(splits["validation"], max_eval_samples)
         splits["test"] = maybe_trim(splits["test"], max_eval_samples)
+
+    train_weights: Optional[List[float]] = None
+    if augmentation_cfg and augmentation_cfg.get("enabled", False):
+        entity_cfg = _build_entity_aug_config(augmentation_cfg, seed)
+        augmented = entity_aware_augmentation(splits["train"], entity_cfg)
+        if augmented:
+            base_len = len(splits["train"])
+            splits["train"] = list(splits["train"]) + augmented
+            train_weights = [1.0] * base_len + [entity_cfg.loss_weight] * len(augmented)
+            rng = random.Random(entity_cfg.seed)
+            combined = list(zip(splits["train"], train_weights))
+            rng.shuffle(combined)
+            splits["train"], train_weights = zip(*combined)
+            splits["train"] = list(splits["train"])
+            train_weights = list(train_weights)
+            logger.info(
+                "Augmented training split: base=%s augmented=%s total=%s",
+                base_len,
+                len(augmented),
+                len(splits["train"]),
+            )
+        else:
+            logger.info("Augmentation enabled but no candidates produced new sentences.")
 
     all_sentences: List[ConllSentence] = []
     for split_sentences in splits.values():
@@ -149,11 +204,12 @@ def create_dataloaders(
             label_to_id=label_info.label_to_id,
             max_length=max_length,
             label_all_tokens=label_all_tokens,
+            sample_weights=train_weights if split_name == "train" else None,
         )
         for split_name, split_sentences in splits.items()
     }
 
-    collator = DataCollatorForTokenClassification(tokenizer=tokenizer, return_tensors="pt")
+    collator = NerDataCollator(tokenizer=tokenizer)
 
     dataloaders = {
         "train": DataLoader(
@@ -180,3 +236,57 @@ def create_dataloaders(
     }
 
     return dataloaders, label_info
+
+
+def _build_entity_aug_config(cfg: Mapping[str, Any], fallback_seed: int) -> EntityAugmentationConfig:
+    """Translate YAML dict into an :class:`EntityAugmentationConfig`."""
+
+    max_gen = cfg.get("max_generated_samples")
+    if max_gen is not None:
+        try:
+            max_gen = int(max_gen)
+        except (TypeError, ValueError):
+            max_gen = None
+
+    return EntityAugmentationConfig(
+        replace_prob=float(cfg.get("entity_replace_prob", 0.3)),
+        max_replacements=int(cfg.get("max_entity_replacements", 2)),
+        copies_per_sentence=int(cfg.get("copies_per_sample", 1)),
+        max_generated=max_gen,
+        loss_weight=float(cfg.get("loss_weight", 0.5)),
+        seed=int(cfg.get("seed", fallback_seed)),
+        shuffle=bool(cfg.get("shuffle", True)),
+    )
+
+
+def _apply_fold_indices(
+    splits: Dict[str, List[ConllSentence]],
+    fold_indices: Mapping[str, Sequence[int]],
+) -> None:
+    """Override train/validation splits using explicit index selections."""
+
+    train_ids = fold_indices.get("train")
+    val_ids = fold_indices.get("validation")
+    if train_ids is None or val_ids is None:
+        logger.warning("Fold indices provided without both train/validation keys. Ignoring overrides.")
+        return
+
+    pool = list(splits["train"]) + list(splits["validation"])
+    total_available = len(pool)
+
+    def select(indices: Sequence[int]) -> List[ConllSentence]:
+        selected: List[ConllSentence] = []
+        for idx in indices:
+            if idx < 0 or idx >= total_available:
+                raise IndexError(f"Fold index {idx} out of range (total={total_available}).")
+            selected.append(pool[idx])
+        return selected
+
+    splits["train"] = select(train_ids)
+    splits["validation"] = select(val_ids)
+    logger.info(
+        "Applied custom fold indices | train=%s validation=%s pool_size=%s",
+        len(train_ids),
+        len(val_ids),
+        total_available,
+    )

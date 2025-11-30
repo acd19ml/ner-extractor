@@ -1,0 +1,130 @@
+\chapter{Methodology}
+\section{Fine-tuned CRF-BiLSTM for Named Entity Recognition}
+We aim to design a sequence-labeling model capable of learning BIO tagging from annotated token sequences.  
+Our implemented solution compares two architectures:
+\begin{itemize}
+    \item BiLSTM with token-wise softmax classification
+    \item BiLSTM followed by a Conditional Random Field (CRF)
+\end{itemize}
+The CRF version enforces tag-transition constraints and is expected to better handle BIO-structure consistency.
+
+\subsection{Model Architectures}
+Figure~\ref{fig:model-architecture} illustrates the overall architecture.  
+
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.8\linewidth]{fig/bilstm_vs_bilstmcrf.png}
+\caption{Model architecture of BiLSTM and BiLSTM-CRF. (Placeholder)}
+\label{fig:model-architecture}
+\end{figure}
+
+\subsubsection{BiLSTM Encoder}
+The BiLSTM processes token embeddings bidirectionally:
+\[
+h_t = \mathrm{BiLSTM}(x_1,\dots,x_T)_t.
+\]
+
+\subsubsection{CRF Layer}
+The CRF models the conditional probability of a label sequence:
+\[
+p(y|h) = \frac{\exp(\sum_t A_{y_{t},y_{t+1}} + P_{t,y_t})}
+{\sum_{y'}\exp(\sum_t A_{y'_{t},y'_{t+1}} + P_{t,y'_t})}.
+\]
+
+Training maximizes the log-likelihood:
+\[
+\mathcal{L} = \log p(y|h).
+\]
+
+\subsubsection{Viterbi Decoding}
+At inference time, the optimal tag sequence is decoded via Viterbi:
+\[
+y^{*} = \arg\max_y p(y|h).
+\]
+
+\subsection{Training Details}
+\begin{itemize}
+    \item Optimizer: Adam
+    \item Learning rates searched: $1e^{-3}$, $5e^{-4}$
+    \item Hidden dimensions: 128, 256
+    \item Batch size: 32
+    \item Epochs: 12 for final training
+    \item Early stopping curves recorded but not used
+\end{itemize}
+
+\subsection{Hyperparameter Search}
+A structured grid search is performed over:
+\[
+\{\text{BiLSTM},\ \text{BiLSTM-CRF}\}
+\times
+\{128, 256\}
+\times
+\{1e^{-3}, 5e^{-4}\}.
+\]
+
+Each configuration is evaluated using 3-fold cross-validation.  
+The best configuration found by the system is:
+
+\[
+\textbf{BiLSTM-CRF},\quad \textbf{hidden=256},\quad \textbf{lr=0.001},\quad \textbf{F1=0.832}.
+\]
+
+A placeholder for the hyperparameter search figure is provided below.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.8\linewidth]{fig/GridSearch}
+\caption{Visualization of grid search results. (Placeholder)}
+\end{figure}
+
+
+\label{chap:methodology}
+
+\section{Fine-tuned RoBERTa for Named Entity Recognition}
+\label{sec:roberta}
+
+\subsection{Overview of RoBERTa}
+RoBERTa (Robustly optimized BERT Pretraining Approach)~\cite{liu2019roberta} is a highly optimized variant of BERT that consistently outperforms the original model on a wide range of NLP benchmarks. The main improvements include training on a significantly larger corpus (160 GB of text) for more steps, removing the Next Sentence Prediction (NSP) objective, applying dynamic masking, and using larger batch sizes with higher learning rates. These modifications result in a more robust contextual encoder.
+
+In this project, we fine-tune the pre-trained \texttt{roberta-base} model (12 layers, 768 hidden dimension, 125M parameters) for token-level Named Entity Recognition by attaching a randomly initialized linear classification head on top of the final hidden states to predict one of the nine CoNLL-2003 IOB tags.
+
+\subsection{Model and Tokenizer}
+We load \texttt{roberta-base} from the Hugging Face Hub~\cite{wolf-etal-2020-transformers} and add a token classification head of size $768 \times 9$. The official RoBERTa Byte-Level BPE tokenizer is used with the flag \texttt{add\_prefix\_space=True} to correctly handle leading spaces.
+
+\subsection{Tokenization and Label Alignment}
+Since RoBERTa employs subword tokenization, a single word may be split into multiple sub-tokens. We therefore implement a standard label alignment in the \texttt{tokenize\_and\_align\_labels} function:
+\begin{itemize}
+    \item The gold label is assigned only to the \textbf{first} sub-token of each original word,
+    \item Subsequent sub-tokens receive \texttt{-100} (ignored by the loss) unless the gold tag is an \texttt{I-} tag, in which case the \texttt{I-} label is preserved),
+    \item Special tokens (\texttt{<s>}, \texttt{</s>}) are labeled \texttt{-100}.
+\end{itemize}
+This alignment is applied in batched mode using \texttt{Dataset.map}.
+\section{Fine-tuned DistilBERT-CRF for Named Entity Recognition}
+\subsection{Model Architecture}
+The DistilBERT-CRF model integrates a pre-trained Transformer encoder with a probabilistic graphical model:
+
+\begin{enumerate}
+    \item \textbf{Encoder (DistilBERT)}: The \texttt{distilbert-base-cased} model serves as the backbone, providing contextualized embeddings. We use the \textbf{first subword} of each word to represent the token, masking subsequent subwords to maintain alignment with original word-level labels.
+    \item \textbf{Emission Layer}: A linear projection maps the hidden states to the tag space (BIOES schema).
+    \item \textbf{Decoder (Linear-Chain CRF)}: A CRF layer models the transition probabilities between adjacent tags. During training, we maximize the log-likelihood of the gold label sequence. During inference, the Viterbi algorithm is used to decode the most probable sequence, enforcing structural constraints (e.g., hard constraints on invalid transitions like \texttt{O} $\rightarrow$ \texttt{I-PER}).
+\end{enumerate}
+
+\subsection{Training Strategies}
+To achieve state-of-the-art performance and stability, the following strategies were implemented:
+
+\begin{itemize}
+    \item \textbf{Differential Learning Rates (Diff-LR)}:
+    \begin{itemize}
+        \item Encoder: $2 \times 10^{-5}$ (preventing destruction of pre-trained features).
+        \item CRF/Head: $2 \times 10^{-3}$ (fast convergence for task-specific layers).
+    \end{itemize}
+    
+    \item \textbf{Layer-wise Learning Rate Decay (LLRD)}: A decay factor of $\gamma=0.95$ is applied, assigning lower learning rates to bottom layers.
+    
+    \item \textbf{R-Drop (Consistency Regularization)}: We enforce KL-divergence consistency between the outputs of two forward passes with dropout ($\lambda=0.5$), promoting smoother decision boundaries.
+    
+    \item \textbf{Exponential Moving Average (EMA)}: Model weights are tracked with a decay of $0.999$, and the EMA weights are used for evaluation to improve generalization and robustness.
+    
+    \item \textbf{Data Augmentation}: We employ entity-aware augmentation where entity tokens are replaced with other entities of the same type from the training set, to improve robustness and reduce overfitting.
+\end{itemize}

@@ -85,6 +85,7 @@ class DistilBertCrfForTokenClassification(DistilBertPreTrainedModel):
         input_ids: torch.Tensor,
         attention_mask: Optional[torch.Tensor] = None,
         labels: Optional[torch.Tensor] = None,
+        sample_weight: Optional[torch.Tensor] = None,
         return_predictions: bool = False,
     ) -> ModelOutput:
         outputs = self.distilbert(input_ids=input_ids, attention_mask=attention_mask)
@@ -108,8 +109,16 @@ class DistilBertCrfForTokenClassification(DistilBertPreTrainedModel):
             crf_inputs = self.crf_dropout(emissions)
             crf_log_likelihood = self.crf(crf_inputs, labels_for_crf, mask)
             if crf_log_likelihood.dim() > 0:
+                per_example_loss = -crf_log_likelihood
+                if sample_weight is not None:
+                    weights = sample_weight.to(per_example_loss.device).view(-1)
+                    weight_sum = weights.sum().clamp(min=1e-8)
+                    loss = (per_example_loss * weights).sum() / weight_sum
+                else:
+                    loss = per_example_loss.mean()
                 crf_log_likelihood = crf_log_likelihood.mean()
-            loss = -crf_log_likelihood
+            else:
+                loss = -crf_log_likelihood
 
         if return_predictions or labels is None:
             if mask is None:
