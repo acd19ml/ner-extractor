@@ -36,6 +36,7 @@ DistilBERT-CRF/models/
 DistilBERT-CRF/loss_curves/
 DistilBERT-CRF/training_logs/
 DistilBERT-CRF/analysis/
+DistilBERT-CRF/plan.md
 
 # Environment / lock files
 python_environment.yml

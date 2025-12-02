@@ -1,250 +1,131 @@
 # Named Entity Recognition (NER) Extractor
 
-> A lightweight and extensible Named Entity Recognition (NER) system built for sequence labeling tasks, evaluated on the CoNLL-2003 dataset.
+> A comprehensive Named Entity Recognition (NER) system comparing BiLSTM-CRF, RoBERTa, and DistilBERT-CRF architectures on the CoNLL-2003 dataset.
 
 ---
 
 ## 📘 Project Overview
 
-**Named Entity Recognition (NER)** aims to extract named entities such as **persons (PER)**, **organizations (ORG)**, **locations (LOC)**, and **miscellaneous entities (MISC)** from text.
+This project implements and evaluates three distinct neural architectures for **Named Entity Recognition (NER)**:
+1.  **BiLSTM-CRF**: A classic recurrent baseline with structured decoding.
+2.  **RoBERTa**: A high-performance fine-tuned transformer.
+3.  **DistilBERT-CRF**: An optimized lightweight transformer with a CRF layer, featuring advanced training strategies like R-Drop, EMA, and Differential Learning Rates.
 
-For example:
-> _"I study at City University of Hong Kong."_  
-> → **City University of Hong Kong** → `ORG`
-
-This project implements and evaluates a NER extractor using **sequence labeling** methods (token-level classification), with flexibility to integrate more advanced architectures like **transformers** or **prompt-based models**.
+**Goal**: To extract named entities (PER, ORG, LOC, MISC) from text while analyzing the trade-offs between model capacity, inference efficiency, and structured prediction.
 
 ---
 
 ## ⚙️ Key Features
 
-- ✅ Sequence labeling model with token-level classification  
-- ✅ Compatible with **CoNLL03** and **Hugging Face datasets**  
-- ✅ Modular pipeline: data preprocessing → model training → evaluation  
-- ✅ Easily extensible to other datasets or architectures  
-- ✅ Supports PyTorch and Hugging Face Transformers
+- **Multi-Architecture Support**: Implementations for BiLSTM, BiLSTM-CRF, DistilBERT (Sequence Classification & CRF), and RoBERTa.
+- **Advanced Training**:
+    - **Differential Learning Rates**: Layer-wise decay for transformer fine-tuning.
+    - **R-Drop**: Consistency regularization for robust generalization.
+    - **EMA**: Exponential Moving Average of model weights.
+    - **Data Augmentation**: Entity-aware synonym replacement.
+- **Comprehensive Evaluation**:
+    - **5-Fold Cross-Validation** with strict GroupKFold (by document ID).
+    - **Strict Entity-level F1** (CoNLL standard).
+    - **Detailed Error Analysis**: Confusion matrices and type-confusion breakdowns.
+- **Visualization**:
+    - **Embeddings**: PCA and UMAP projections with token annotations.
+    - **Clustering**: K-Means analysis of representation quality.
+    - **Training Dynamics**: Loss curves and F1 progression plots.
 
 ---
 
-## 🧩 Methodology
+## 🧩 Methodology & Results
 
-This project treats NER as a **sequence labeling problem**, where each token is assigned a tag (BIO or BIOES scheme):
+We benchmarked three model families on the CoNLL-2003 dataset.
 
-| Tag   | Meaning                      |
-| ----- | ---------------------------- |
-| B-ORG | Beginning of an organization |
-| I-ORG | Inside an organization       |
-| O     | Outside any named entity     |
+| Model | Test F1 | Key Characteristics |
+| :--- | :--- | :--- |
+| **RoBERTa (Base)** | **91.8% - 92.1%** | State-of-the-art accuracy, heavy computational cost. |
+| **DistilBERT-CRF** | **89.64%** | **Best Balance**: 60% smaller than RoBERTa, robust structured prediction. |
+| **BiLSTM-CRF** | ~83.2% | Strong non-transformer baseline, validates CRF necessity. |
 
-### 1️⃣ Model Options
+### Visualization Highlights
+The project includes scripts to generate dimensionality reduction plots demonstrating the superior separability of Transformer embeddings compared to BiLSTM.
 
-You may explore multiple approaches:
-
-| Approach             | Description                                                |
-| -------------------- | ---------------------------------------------------------- |
-| **BiLSTM + CRF**     | Classical sequence labeling model for NER                  |
-| **BERT / RoBERTa**   | Transformer-based contextual embedding model               |
-| **Prompt-based NER** | Treats NER as a text generation or span prediction problem |
-
-Example model architecture (sequence labeling):
-
-[Input Text] → [Tokenizer] → [Encoder (BERT/BiLSTM)] → [Linear Layer] → [Softmax/CRF] → [Entity Tags]
-
-### 2️⃣ Loss Function
-- Cross-Entropy for token classification  
-- Optional: CRF layer log-likelihood if using CRF  
+*(See `report/figures/` for generated plots)*
 
 ---
 
-## 📊 Dataset
-
-This project uses the **CoNLL-2003 NER dataset**, which contains four entity types:
-
-| Entity | Example        | Description   |
-| ------ | -------------- | ------------- |
-| PER    | Barack Obama   | Person        |
-| ORG    | United Nations | Organization  |
-| LOC    | London         | Location      |
-| MISC   | FIFA           | Miscellaneous |
-
-You can load the dataset via **Hugging Face Datasets**:
-
-```python
-from datasets import load_dataset
-dataset = load_dataset("conll2003")
-```
-
-
-
-------
-
-
-
-
-
-## **🏗️ Repository Structure**
-
-
+## 🏗️ Repository Structure
 
 ```
 ner-extractor/
- ┣━ data/                 # Dataset and preprocessing scripts
- ┣━ models/               # Model architectures (BiLSTM, BERT, etc.)
- ┣━ utils/                # Tokenization, label mapping, metrics
- ┣━ train.py              # Training loop
- ┣━ evaluate.py           # Evaluation script
- ┣━ requirements.txt      # Dependencies
- ┗━ README.md             # Project documentation
+ ┣━ BiLSTM-CRF/           # BiLSTM baseline implementation (Notebooks)
+ ┣━ RoBERTa/              # RoBERTa fine-tuning experiments
+ ┣━ DistilBERT-CRF/       # MAIN: DistilBERT-CRF implementation
+ ┃  ┣━ src/               # Modeling, Trainer, DataModule
+ ┃  ┣━ scripts/           # Train, Eval, Visualize, K-Fold
+ ┃  ┣━ configs/           # YAML configs for ablation studies
+ ┃  ┣━ analysis/          # Visualization scripts & outputs
+ ┣━ report/               # LaTeX report & figures (Final Deliverable)
+ ┣━ doc/                  # Project documentation & schema
+ ┣━ requirements.txt      # Python dependencies
+ ┗━ README.md             # This file
 ```
 
+---
 
+## 🧪 Quick Start (DistilBERT-CRF)
 
-------
+### 1️⃣ Setup Environment
 
-
-
-
-
-## **🧪 Training & Evaluation**
-
-
-
-
-
-
-
-### **1️⃣ Setup Environment**
-
-
-
-```
-conda create -n ner python=3.13
+```bash
+# Create environment
+conda create -n ner python=3.10
 conda activate ner
-pip install -r requirements.txt
+
+# Install dependencies
+pip install -r DistilBERT-CRF/requirements.txt
 ```
 
+### 2️⃣ Train Model
 
+Run the optimized training pipeline (DistilBERT + CRF + Augmentation + EMA):
 
-### **2️⃣ Train Model**
-
-
-
-```
-python train.py \
-  --model bert-base-cased \
-  --epochs 5 \
-  --batch_size 16 \
-  --lr 3e-5 \
-  --dataset conll2003
+```bash
+cd DistilBERT-CRF
+python scripts/train_distilbert_crf.py \
+    --config configs/ablation/aug_on.yaml \
+    --run-name final_run
 ```
 
+### 3️⃣ Visualize Embeddings
 
+Generate PCA and UMAP plots for learned representations:
 
-### **3️⃣ Evaluate Model**
-
-
-
-```
-python evaluate.py --model_path ./checkpoints/best_model.pt
-```
-
-
-
-### **4️⃣ Sample Output**
-
-
-
-```
-Sentence: "Barack Obama was born in Hawaii."
-Entities:
-  Barack Obama  → PER
-  Hawaii        → LOC
+```bash
+# Ensure you are in DistilBERT-CRF directory and have trained a model
+export PYTHONPATH=$PYTHONPATH:$(pwd):$(pwd)/src
+python scripts/visualize_embeddings.py \
+    --model_path models/distilbert_crf/final_run/best \
+    --output_dir ../report/figures/DistiBERT-CRF \
+    --sample_size 2000
 ```
 
+---
 
+## 📈 Evaluation Metrics
 
-------
+Performance is measured using **SeqEval** (strict CoNLL-2003 evaluation):
+- **Precision**: % of predicted entities that match gold standard exactly.
+- **Recall**: % of gold entities correctly recovered.
+- **F1-Score**: Harmonic mean of Precision and Recall.
 
+---
 
+## 📚 References
 
+- **CoNLL-2003 Shared Task**: [Tjong Kim Sang & De Meulder (2003)](https://aclanthology.org/W03-0419.pdf)
+- **Hugging Face Transformers**: [Wolf et al. (2020)](https://huggingface.co/transformers/)
+- **R-Drop**: [Liang et al. (2021)](https://arxiv.org/abs/2106.14448)
 
+---
 
-## **📈 Evaluation Metrics**
-
-
-
-| **Metric**                  | **Description**                                     |
-| --------------------------- | --------------------------------------------------- |
-| **Precision**               | Correct predicted entities / All predicted entities |
-| **Recall**                  | Correct predicted entities / All true entities      |
-| **F1-score**                | Harmonic mean of precision and recall               |
-| **Entity-level evaluation** | Using seqeval for CoNLL-style F1 computation        |
-
-Example:
-
-```
-from seqeval.metrics import classification_report
-print(classification_report(true_labels, pred_labels))
-```
-
-
-
-------
-
-
-
-
-
-## **📚 References**
-
-
-
-
-
-- Tjong Kim Sang, E. F., & De Meulder, F. (2003).
-
-  *Introduction to the CoNLL-2003 Shared Task: Language-Independent Named Entity Recognition.*
-
-  [Paper Link](https://aclanthology.org/W03-0419.pdf)
-
-- Hugging Face Datasets: https://huggingface.co/datasets/conll2003
-
-- Stanford NLP Course Slides: [slp3-17 NER lecture](https://web.stanford.edu/class/archive/cs/cs224n/cs224n.1214/slides/cs224n-2021-lecture17-ner.pdf)
-
-
-
-
-
-------
-
-
-
-
-
-## **🧠 Future Work**
-
-
-
-
-
-- Explore **prompt-based NER** with instruction-tuned LLMs
-
-- Add support for **multilingual datasets (WikiANN)**
-
-- Experiment with **domain adaptation** and **low-resource NER**
-
-  
-
-------
-
-
-
-
-
-## **🧾 License**
-
-
-
-
+## 🧾 License
 
 This project is licensed under the [MIT License](LICENSE).
