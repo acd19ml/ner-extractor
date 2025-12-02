@@ -15,6 +15,20 @@ This project implements and evaluates three distinct neural architectures for **
 
 ---
 
+## 🎥 Project Presentation
+
+<div align="center">
+  <a href="https://drive.google.com/file/d/1ZlAHbuG2L2DojMAHfnrWev_4G_GqadFD/view?usp=drive_link">
+    <img src="https://img.youtube.com/vi/placeholder/maxresdefault.jpg" alt="Watch the Project Presentation" width="600"/>
+    <br>
+    <b>Click here to watch the full project presentation</b>
+  </a>
+</div>
+
+*(Note: Since GitHub README does not support direct Google Drive video embedding, please click the link above to view the presentation.)*
+
+---
+
 ## ⚙️ Key Features
 
 - **Multi-Architecture Support**: Implementations for BiLSTM, BiLSTM-CRF, DistilBERT (Sequence Classification & CRF), and RoBERTa.
@@ -83,7 +97,39 @@ conda activate ner
 pip install -r DistilBERT-CRF/requirements.txt
 ```
 
-### 2️⃣ Train Model
+### 2️⃣ Data Preparation
+
+We use the CoNLL-2003 dataset. Follow these steps to download and prepare it:
+
+1.  **Download Data**:
+    The dataset is loaded automatically via the Hugging Face `datasets` library. No manual download is strictly required for the transformer models as the training script handles it.
+    
+    *However, if you need the raw files for the BiLSTM baseline or custom processing:*
+    *   **Source**: [Hugging Face CoNLL2003 Viewer](https://huggingface.co/datasets/conll2003)
+    *   **Alternative**: [Deep Learning Demos (github)](https://github.com/davidsbatista/NER-datasets/tree/master/CONLL2003)
+
+2.  **Preprocessing**:
+    To generate the processed format (JSON/CSV) used by our `TokenizedNERDataset`:
+
+    ```bash
+    cd DistilBERT-CRF
+    python scripts/prepare_conll03.py --output_dir data/processed/conll03
+    ```
+
+3.  **Directory Structure**:
+    Ensure your data is placed as follows:
+    ```
+    ner-extractor/
+    ┗━ DistilBERT-CRF/
+       ┗━ data/
+          ┗━ processed/
+             ┗━ conll03/
+                ┣━ train.txt
+                ┣━ validation.txt
+                ┗━ test.txt
+    ```
+
+### 3️⃣ Train Model
 
 Run the optimized training pipeline (DistilBERT + CRF + Augmentation + EMA):
 
